@@ -1,23 +1,23 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 # vi:sw=4:ts=4:ai:cindent:et
 # identify uninstallable kernel image packages (i.e. not latest,
 # running, or dependency-tracking)
 # requires the python-apt module to be installed
 
-# Copyright Tim Cutts <tim@thecutts.org>, 2017
+# Copyright Tim Cutts <tim@thecutts.org>, 2017-2024
 
 import getopt, sys, platform, re
 
 try:
     import apt, apt_pkg
 except ImportError:
-    print "Please install the python-apt package and try again"
+    print("Please install the python-apt package and try again")
     sys.exit(1)
 
 try:
     opts, args = getopt.getopt(sys.argv[1:], "uv", ["uninstall", "verbose"])
-except getopt.GetoptError, err:
-    print str(err)
+except getopt.GetoptError as err:
+    print(str(err))
     sys.exit(2)
 
 uninstall = None
@@ -68,23 +68,23 @@ for pkg in cache.keys():
         remove_headers.append(pkg)
 
 if verbose:
-    print "Latest:", latest
-    print "Running:", running
-    print "Installed:", sorted(installed)
-    print "Keep headers:", sorted(keep_headers)
-    print "Remove headers:", sorted(remove_headers)
+    print("Latest:", latest)
+    print("Running:", running)
+    print("Installed:", sorted(installed))
+    print("Keep headers:", sorted(keep_headers))
+    print("Remove headers:", sorted(remove_headers))
 
 if not (touninstall + remove_headers):
     if verbose:
-        print "Nothing to uninstall!"
+        print("Nothing to uninstall!")
 else:
     for pkg in touninstall + remove_headers:
         cache[pkg].mark_delete()
     for pkg in keep_headers:
         cache[pkg].mark_install()
     if verbose:
-        print "Will install: ", sorted([ x.name for x in cache.get_changes() if x.marked_install ])
-        print "Will remove: ", sorted([ x.name for x in cache.get_changes() if x.marked_delete ])
+        print("Will install: ", sorted([ x.name for x in cache.get_changes() if x.marked_install ]))
+        print("Will remove: ", sorted([ x.name for x in cache.get_changes() if x.marked_delete ]))
     if uninstall:
         cache.commit()
     else:
