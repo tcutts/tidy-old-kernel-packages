@@ -33,83 +33,88 @@ def get_options():
         else:
             assert False, "unhandled option"
 
-def uninstall_kernel_packages(apt_cache, to_uninstall, keep_headers, remove_headers):
-    for pkg in to_uninstall + remove_headers:
-        apt_cache[pkg].mark_delete()
-    for pkg in keep_headers:
-        apt_cache[pkg].mark_install()
-    if verbose:
-        print("Will install: ",
-              sorted([ x.name for x in apt_cache.get_changes()
-                      if x.marked_install ]))
-        print("Will remove: ",
-              sorted([ x.name for x in apt_cache.get_changes()
-                      if x.marked_delete ]))
-    if uninstall:
-        apt_cache.commit()
-    else:
-        apt_cache.clear()
-
-def get_header_package_lists(running, cache, latest, keep_headers, remove_headers):
-    latest_headers = latest.replace('image','headers')
-    running_headers = "linux-headers-" + running
+class KernelPackageUninstaller:
+    def __init__(self, verbose = False):
+        self.verbose = verbose
+        self.apt_cache = apt.Cache();
+        self.remove_header_list = [];
+        self.remove_kernel_list = [];
+        self.keep_header_list = [];
+        self.installed_header_list = [];
+        self.running_kernel = platform.uname()[2];
+        self.get_installed_kernels()
+        self.get_header_package_lists()
     
-    for pkg in cache.keys():
-        if cache[pkg].is_installed and re.match('linux-headers-\d',pkg):
-            # Ignore small meta-packages
-            if cache[pkg].versions[0].installed_size < 1000000:
+
+    def uninstall(self, doit = False):
+
+        for pkg in self.remove_kernel_list + self.remove_header_list:
+            self.apt_cache[pkg].mark_delete()
+        for pkg in self.keep_header_list:
+            self.apt_cache[pkg].mark_install()
+
+        if self.verbose:
+            print("Will install: ",
+                sorted([ x.name for x in self.apt_cache.get_changes()
+                      if x.marked_install ]))
+            print("Will remove: ",
+                sorted([ x.name for x in self.apt_cache.get_changes()
+                      if x.marked_delete ]))
+            
+        if doit:
+            self.apt_cache.commit()
+        else:
+            self.apt_cache.clear()
+
+    def get_header_package_lists(self):
+        latest_headers = self.latest_kernel.replace('image','headers')
+        running_headers = "linux-headers-" + self.running_kernel
+    
+        for pkg in self.apt_cache.keys():
+            if self.apt_cache[pkg].is_installed and re.match('linux-headers-\d',pkg):
+                # Ignore small meta-packages
+                if self.apt_cache[pkg].versions[0].installed_size < 1000000:
+                    continue
+                if 'lustre' in pkg:
+                    continue
+                if pkg in latest_headers or pkg in running_headers:
+                    self.keep_header_list.append(pkg)
+                    continue
+                self.remove_header_list.append(pkg)
+
+    def get_installed_kernels(self):
+        latest = ""
+        self.installed_kernels = []
+        for pkg in self.apt_cache.keys():
+            if pkg == 'linux-image':
+                continue
+            if re.match('linux-image-[a-z]+(-pae)?$', pkg):
                 continue
             if 'lustre' in pkg:
                 continue
-            if pkg in latest_headers or pkg in running_headers:
-                keep_headers.append(pkg)
-                continue
-            remove_headers.append(pkg)
-
-def get_installed_kernels(installed, cache):
-    latest = ""
-    for pkg in cache.keys():
-        if pkg == 'linux-image':
-            continue
-        if re.match('linux-image-[a-z]+(-pae)?$', pkg):
-            continue
-        if 'lustre' in pkg:
-            continue
-        if 'linux-image' in pkg:
-            if cache[pkg].is_installed:
-                installed.append(pkg)
+            if 'linux-image' in pkg:
+                if self.apt_cache[pkg].is_installed:
+                    self.installed_kernels.append(pkg)
                 if apt_pkg.version_compare(pkg, latest) > 0:
                     latest = pkg
-    return latest
+        self.latest_kernel = latest
+        self.remove_kernel_list = [x for x in self.installed_kernels
+                                   if apt_pkg.version_compare(x, self.latest_kernel) < 0 and not self.running_kernel in x]
+        
+    def describe_plan(self):
+        if verbose:
+            print("Latest:", self.latest_kernel)
+            print("Running:", self.running_kernel)
+            print("Installed:", sorted(self.installed_kernels))
+            print("Keep headers:", sorted(self.keep_header_list))
+            print("Remove headers:", sorted(self.remove_header_list))
 
 def main():
     get_options()
 
-    running_kernel = platform.uname()[2]
-    installed_kernels = []
-
-    apt_cache = apt.Cache()
-    latest_kernel = get_installed_kernels(installed_kernels, apt_cache)
-
-    to_uninstall = [x for x in installed_kernels
-                    if apt_pkg.version_compare(x, latest_kernel) < 0 and not running_kernel in x]
-
-    keep_headers = []
-    remove_headers = []
-    get_header_package_lists(running_kernel, apt_cache, latest_kernel, keep_headers, remove_headers)
-
-    if verbose:
-        print("Latest:", latest_kernel)
-        print("Running:", running_kernel)
-        print("Installed:", sorted(installed_kernels))
-        print("Keep headers:", sorted(keep_headers))
-        print("Remove headers:", sorted(remove_headers))
-
-    if (to_uninstall + remove_headers):
-        uninstall_kernel_packages(apt_cache, to_uninstall, keep_headers, remove_headers)
-    else:
-        if verbose:
-            print("Nothing to uninstall!")        
+    tidy_tool = KernelPackageUninstaller(verbose)
+    tidy_tool.describe_plan()
+    tidy_tool.uninstall(uninstall)    
 
 if __name__ == "__main__":
     main()
