@@ -71,7 +71,7 @@ class KernelPackageUninstaller:
         running_headers = "linux-headers-" + self.running_kernel
     
         for pkg in self.apt_cache.keys():
-            if self.apt_cache[pkg].is_installed and re.match('linux-headers-\d',pkg):
+            if self.apt_cache[pkg].is_installed and re.match(r'linux-headers-\d', pkg):
                 # Ignore small meta-packages
                 if self.apt_cache[pkg].versions[0].installed_size < 1000000:
                     continue
@@ -88,7 +88,7 @@ class KernelPackageUninstaller:
         for pkg in self.apt_cache.keys():
             if pkg == 'linux-image':
                 continue
-            if re.match('linux-image-[a-z]+(-pae)?$', pkg):
+            if re.match(r'linux-image-[a-z]+(-pae)?$', pkg):
                 continue
             if 'lustre' in pkg:
                 continue
@@ -99,7 +99,7 @@ class KernelPackageUninstaller:
                     latest = pkg
         self.latest_kernel = latest
         self.remove_kernel_list = [x for x in self.installed_kernels
-                                   if apt_pkg.version_compare(x, self.latest_kernel) < 0 and not self.running_kernel in x]
+                                    if apt_pkg.version_compare(x, self.latest_kernel) < 0 and not self.running_kernel in x]
         
     def describe_plan(self):
         if verbose:
